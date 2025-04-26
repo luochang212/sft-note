@@ -1,56 +1,80 @@
-# LLaMA-Factory 微调大模型
+# 三种方法实现监督微调 (SFT)：LLaMA Factory, trl 和 unsloth
 
-> 大模型的知识点太多，一不小心就学杂了：推理框架 vLLM、量化方法 AWQ、微调技术 QLoRA、网络搜索 SearXNG、工具调用 MCP Server、检索增强生成 GraphRAG、向量数据库 Chroma ... 跟报菜名似的。这就是大模型的特点，它是一个复杂工程。
+大语言模型，比如 Qwen, Llama，有很强的通用能力。但在特定领域，它的表现可能不如领域小模型。为了让大模型适应特定任务，我们会对大模型进行微调，使大模型在保持通用性的同时，兼具领域模型的专业知识、对话风格和输出格式。
 
-基座大模型，比如 Qwen, Llama，有很强的通用能力。但在特定领域，它的表现可能不如领域小模型。为了提高大模型在特定领域的表现，可以用领域数据集对大模型进行微调，以增强模型对 领域知识、语言风格 和 输出格式 的记忆。
+大模型有三种微调范式：
 
-目前，微调大致可分三种技术路线：
+1. **无监督微调**：在海量数据上进行二次预训练
+    - PT 增量预训练
+3. **监督微调 (SFT)**：构造领域数据集，增强模型的指令遵循能力，并注入领域知识
+    - 指令微调
+4. **强化学习微调**：通过 reward 引导模型优化
+    - [RLHF](https://arxiv.org/abs/2203.02155) 基于人类反馈的强化学习
+    - [DPO](https://arxiv.org/abs/2305.18290) 直接偏好优化方法
+    - [ORPO](https://arxiv.org/abs/2403.07691) 比值比偏好优化
+    - [GRPO](https://arxiv.org/abs/2402.03300) 群体相对策略优化
 
-1. **无监督 / 自监督微调**：通过降低预训练目标的 loss 继续训练
-2. **监督微调**：使用显式标签数据（如问答数据集）优化模型
-3. **强化学习微调**：通过 reward 引导模型进行优化
-    - RLHF
-    - PPO
-    - DPO
-    - GRPO
+本文聚焦 **监督微调 (Supervised Fine-Tuning)**。监督微调是一种简单但有用的微调方式，能够快速融合业务数据、适应业务场景，因此学习性价比极高！
 
-这里比较简单的是 **监督微调 (Supervised Fine-Tuning, SFT)**。作为入门学习项目，当然选简单的啦。接下来，我们要用医疗数据集 **medical** 通过 **LLaMA Factory** 对 Qwen 模型进行 **SFT 微调**。
+## 1. SFT 的简单介绍
+
+SFT 是一个 **有监督学习** 的过程。它的优化目标是 **最小化模型生成的回答与目标回答之间的差异**，通常使用交叉熵损失。为避免破坏预训练阶段获得的知识，SFT 阶段通常使用较低的学习率，并且可能只更新部分参数层，其他参数保持不变。相比与预训练阶段所需的海量数据，SFT 只需要较小的数据量（数千到数十万样本）。
+
+## 2. SFT 的使用场景
+
+为了让大家对 SFT 能做什么更有感，下面列出 SFT 的一些使用场景：
+
+|任务|场景举例|微调目标|
+| -- | -- | -- |
+|**商品文案生成**|输入标签：`红色#女士#卫衣`，模型输出文案：`女士专属红色卫衣，解锁秋冬时尚密码`|任务对齐|
+|**简历筛选**|输入职位要求和简历，模型输出匹配分和技能匹配分析|任务对齐|
+|**用户评论情感分类**|输入用户评论：`蓝牙连接不稳定`，模型输出情感标签：`负面`|任务对齐|
+|**合同审核**|输入合同文本，模型识别潜在法律风险，并引述法条和案例|知识迁移|
+|**医疗咨询**|输入 `肺炎有什么症状`，模型输出 `咳嗽、咳痰、发热、胸痛，严重情况会呼吸困难`|知识迁移|
+
+上面标注了微调的目标：`任务对齐` 和 `知识迁移`。大多数时候，微调的目标是两者兼有的。上面是根据偏向性进行的标注，并不是只有 `任务对齐` 或 `知识迁移` 的意思。
+
+## 3. SFT 的数据集格式
+
+SFT 通过人类精心设计的高质量数据集来微调模型参数。
+
+微调使用的数据格式是灵活的。但是过于灵活的数据格式，可能导致加载数据的不便。SFT 领域经过几年的发展，也逐渐形成了一些主流的数据格式。其中，[stanford_alpaca](https://github.com/tatsu-lab/stanford_alpaca) 就是一种专为指令微调设计的数据格式。一般来说，每条 alpaca 数据由 `instruction`, `input`, `output` 三个字段构成。
+
+**1）问答数据集**
+
+```
+{
+    "instruction": "帕金森叠加综合征的辅助治疗有些什么？",
+    "input": "",
+    "output": "综合治疗；康复训练；生活护理指导；低频重复经颅磁刺激治疗"
+}
+```
+
+上面是一条问答数据集中的数据。对于问答数据集，`input` 字段可以留空。问题写在 `instruction` 字段里；回答写在 `output` 字段里。
+
+**2）指令微调数据集**
+
+```
+{
+    "instruction": "请对下面这篇文章进行分类，分类标签从“教育”、“健康”、“游戏”、“其他”四个标签中选择。仅回答标签，不要回答除标签以外的任何内容。",
+    "input": "怪物猎人崛起实在是太好玩了！",
+    "output": "游戏"
+}
+```
+
+指令微调数据集的三个字段都有值。`instruction` 字段写我们希望模型做什么；`input` 字段写每次请求模型的输入，`output` 字段写每次请求我们希望模型输出什么。
+
+## 4. 本文的微调任务
+
+本文通过一个具体的微调任务，深入探索监督微调的技术细节。
+
+接下来，我计划使用 **医疗问答数据集 medical** 对 **Qwen 模型** 做 **SFT 监督微调**。我将使用三种框架进行微调。首先使用 `LLaMA Factory`，通过它提供的 UI 界面，我们可以轻松微调大模型。然后使用 `trl` 和 `unsloth` 两个框架，这两个流行框架也各有优点。`trl` 是 HuggingFace 官方发布的库，有较好的 HuggingFace 生态支持，并且它支持强化学习全链路训练，提供 SFTTrainer, PPOTrainer, DPOTrainer 等组件。`unsloth` 则擅长加速训练和量化技术，它显著减少了微调过程中的显存使用量，使得消费级显卡也能轻松微调大模型。
+
+相关资源列表：
 
 - medical 数据集：[shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
-- Qwen 模型：[Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
+- LLaMA Factory：[hiyouga/LLaMA-Factory](https://github.com/hiyouga/LLaMA-Factory)
+- `Qwen2.5-0.5B-Instruct` 模型：[Qwen/Qwen2.5-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct)
+- `Qwen2.5-7B-Instruct` 模型：[Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 
-## 一、LLaMA Factory
-
-> 微调相关的框架是相当多，比如 [unsloth](https://github.com/unslothai/unsloth), [trl](https://github.com/huggingface/trl), [peft](https://github.com/huggingface/peft)。跟前面这些比起来，LLaMA Factory 是最容易上手的。
-
-[LLaMA Factory](https://github.com/hiyouga/LLaMA-Factory) 支持通过 WebUI 零代码微调大语言模型。它的功能还包括加速算子、量化、实验监控、效果评估等，甚至带了一个基于 gradio 开发的 ChatBot 推理页面。
-
-1. 安装 LLaMA Factory
-    - 安装 CUDA
-    - 安装 LLaMA-Factory
-    - 安装 bitsandbytes
-2. 下载 Qwen 模型
-    - 安装 ModelScope
-    - 下载 Qwen2.5-7B-Instruct 模型
-3. 模型推理测试
-    - 使用 transformers 库推理
-    - 使用 ChatBot 推理
-
-## 二、数据准备
-
-1. 下载数据集
-2. 数据集格式
-3. 填写描述文件
-
-## 三、微调大模型
-
-
-
-
-
-
-
-参考：
-
-- [入门教程](https://zhuanlan.zhihu.com/p/695287607)
-- [框架文档](https://llamafactory.readthedocs.io/zh-cn/latest/)
+本文意在跑通流程，因此建议使用 `0.5B` 模型，不但显存占用低，也能更快完成微调。如果你有 RTX 4090 或者 GPU 服务器，可以考虑使用 `7B` 模型。

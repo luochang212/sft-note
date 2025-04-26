@@ -75,7 +75,6 @@ SFT 通过人类精心设计的高质量数据集进行微调。
 使用 **医疗问答数据集 medical** 对 **Qwen 模型** 做 **SFT 监督微调**。相关资源列表：
 
 - medical 数据集：[shibing624/medical](https://huggingface.co/datasets/shibing624/medical)
-- LLaMA Factory：
 - `Qwen2.5-0.5B-Instruct` 模型：[Qwen/Qwen2.5-0.5B-Instruct](https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct)
 - `Qwen2.5-7B-Instruct` 模型：[Qwen/Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
 

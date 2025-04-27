@@ -8,7 +8,6 @@
 __pycache__
 
 envs
-data
 cache
 saves
 offload
@@ -17,5 +16,8 @@ Qwen2.5-0.5B-SFT
 
 /model/*/
 !/model/
+
+/data/*
+!/data/*.sh
 
 all.ipynb

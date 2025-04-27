@@ -2,18 +2,21 @@
 
 > 试了三种流行的微调框架，其中最推荐的是 unsloth，因为快！另外两种框架 LLaMA Factory 和 trl 是在夜里跑的，显卡风扇响了一宿。第二天看日志，它们都跑了三个多小时才跑完。但是同样的任务，unsloth 只需要五分钟，快得有些离谱。当然，这么比不是完全公平的，因为它们的量化方法、LoRA 参数是不同的。但是 unsloth 快这一点依然是无可质疑的。如果在 GPU 服务器上认真微调，那么用 LLaMA Factory 没毛病；但如果只是在笔记本上随便玩玩，unsloth 的优势就太大了！
 
-⭐ 本文内容包括：
+⭐ 本文的内容包括：
 
 1. 大模型微调的三种范式：无监督微调、监督微调、强化学习微调
 2. 介绍用于监督微调的数据格式，以及如何加载数据集
 3. 如何下载 Qwen 模型，代码见 [download_qwen.py](https://github.com/luochang212/sft-note/blob/main/model/download_qwen.py)
 4. 使用三种框架微调大模型：LLaMA Factory, trl, unsloth
 
-学完 SFT 之后，我认为最适合初学者的技术栈是 trl + unsloth，**学习路线** 如下：
+[//]: # (学完 SFT 之后，我认为最适合初学者的技术栈是 trl + unsloth，**学习路线** 如下：)
 
-1. 先看 unsloth 的 [beginner 文档](https://docs.unsloth.ai/get-started/beginner-start-here)，了解一下背景知识
-2. 看完以后，参考 unsloth 的 [notebooks](https://docs.unsloth.ai/get-started/unsloth-notebooks)，跑通一个 unsloth 微调实例
-3. 最后，因为 unsloth 用到了 trl，所以有必要看一下 trl 的 [SFT 文档](https://huggingface.co/docs/trl/sft_trainer)
+[//]: # ()
+[//]: # (1. 先看 unsloth 的 [beginner 文档]&#40;https://docs.unsloth.ai/get-started/beginner-start-here&#41;，了解一下背景知识)
+
+[//]: # (2. 看完以后，参考 unsloth 的 [notebooks]&#40;https://docs.unsloth.ai/get-started/unsloth-notebooks&#41;，跑通一个 unsloth 微调实例)
+
+[//]: # (3. 最后，因为 unsloth 用到了 trl，所以有必要看一下 trl 的 [SFT 文档]&#40;https://huggingface.co/docs/trl/sft_trainer&#41;)
 
 ## 一、引言
 
